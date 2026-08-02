@@ -30,7 +30,10 @@ def main():
     for test in TEST_FILES:
         print(f"\nRunning {test}...")
         try:
-            res = subprocess.run([python_bin, test], capture_output=True, text=True, check=True)
+            cmd = [python_bin, test]
+            if test == "test_intake_pipeline.py":
+                cmd.append("MediVision123!")
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             print(res.stdout)
         except subprocess.CalledProcessError as err:
             print(f"FAIL: {test}")

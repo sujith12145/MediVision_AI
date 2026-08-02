@@ -10,7 +10,8 @@ import { WebSocketTransport } from '@pipecat-ai/websocket-transport'
 async function apiFetch(path, opts = {}) {
   const { data: sd } = await supabase.auth.getSession()
   const token = sd.session?.access_token
-  return fetch(path, {
+  const baseUrl = import.meta.env.VITE_API_URL || ''
+  return fetch(`${baseUrl}${path}`, {
     ...opts,
     headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
   })
@@ -671,6 +672,18 @@ function TabBtn({ id, label, icon, activeTab, badgeCount, onClick }) {
   )
 }
 
+function getWsUrl(path, token) {
+  const apiUrl = import.meta.env.VITE_API_URL
+  if (apiUrl && apiUrl.startsWith('http')) {
+    const url = new URL(apiUrl)
+    const protocol = url.protocol === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${url.host}${path}?token=${token}`
+  } else {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${window.location.host}${path}?token=${token}`
+  }
+}
+
 /* ════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ════════════════════════════════════════════════════════════ */
@@ -846,8 +859,7 @@ export default function VoicePanel() {
       const { data: sd } = await supabase.auth.getSession()
       const token = sd.session?.access_token
       if (!token) return
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      ws = new WebSocket(`${protocol}://${window.location.host}/api/voice/notifications?token=${token}`)
+      ws = new WebSocket(getWsUrl('/api/voice/notifications', token))
       notificationWsRef.current = ws
       ws.onmessage = (evt) => {
         try { handleNotificationEvent(JSON.parse(evt.data)) } catch { }
@@ -878,9 +890,7 @@ export default function VoicePanel() {
       const token = sd.session?.access_token
       if (!token) throw new Error('Not authenticated')
 
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      // Use the correct WebSocket path registered in voice/router.py
-      const wsUrl = `${protocol}://${window.location.host}/api/voice/ws?token=${token}`
+      const wsUrl = getWsUrl('/api/voice/ws', token)
 
       const transport = new WebSocketTransport()
       const client = new PipecatClient({

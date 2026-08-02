@@ -32,16 +32,7 @@ from app.services.qr_service import generate_unique_qr_code_id, generate_qr_svg_
 
 logger = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        from app.voice.scheduler import scheduler, load_all_pending_reminders
-        scheduler.start()
-        load_all_pending_reminders()
-        logger.info("Successfully initialized voice reminder scheduler.")
-    except Exception as e:
-        logger.error("Failed to start voice reminder scheduler: %s", e, exc_info=True)
-
+def populate_missing_qr_codes():
     logger.info("Checking for medicines lacking QR codes...")
     db = SessionLocal()
     try:
@@ -62,6 +53,18 @@ async def lifespan(app: FastAPI):
         db.rollback()
     finally:
         db.close()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from app.voice.scheduler import scheduler, load_all_pending_reminders
+        scheduler.start()
+        load_all_pending_reminders()
+        logger.info("Successfully initialized voice reminder scheduler.")
+    except Exception as e:
+        logger.error("Failed to start voice reminder scheduler: %s", e, exc_info=True)
+
+    populate_missing_qr_codes()
 
     yield
 
@@ -90,13 +93,20 @@ app.add_exception_handler(RateLimitExceeded, typing.cast(typing.Any, _rate_limit
 # ---------------------------------------------------------------------------
 # CORS — adjust origins for production
 # ---------------------------------------------------------------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+import os
+cors_origins_env = os.getenv("CORS_ORIGINS")
+if cors_origins_env:
+    origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+else:
+    origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://[::1]:3000",
-    ],
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

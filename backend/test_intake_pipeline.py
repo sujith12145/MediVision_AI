@@ -29,7 +29,7 @@ import httpx
 BASE = "http://localhost:8000"
 
 # ── Credentials (adjust if you changed them) ──────────────────────────────
-DEMO_USER = "admin"
+DEMO_USER = "admin@medivision.local"
 DEMO_PASS = sys.argv[1] if len(sys.argv) > 1 else input("Demo user password: ")
 
 # ── Test images and expected ground-truth values ───────────────────────────
