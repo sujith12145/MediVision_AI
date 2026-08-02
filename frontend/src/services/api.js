@@ -9,7 +9,7 @@
 
 import { supabase } from './supabase'
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://medi-vision-ai.onrender.com')
 
 async function getToken() {
   const { data } = await supabase.auth.getSession()

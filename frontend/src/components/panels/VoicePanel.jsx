@@ -10,7 +10,7 @@ import { WebSocketTransport } from '@pipecat-ai/websocket-transport'
 async function apiFetch(path, opts = {}) {
   const { data: sd } = await supabase.auth.getSession()
   const token = sd.session?.access_token
-  const baseUrl = import.meta.env.VITE_API_URL || ''
+  const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://medi-vision-ai.onrender.com')
   return fetch(`${baseUrl}${path}`, {
     ...opts,
     headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
@@ -673,7 +673,7 @@ function TabBtn({ id, label, icon, activeTab, badgeCount, onClick }) {
 }
 
 function getWsUrl(path, token) {
-  const apiUrl = import.meta.env.VITE_API_URL
+  const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://medi-vision-ai.onrender.com')
   if (apiUrl && apiUrl.startsWith('http')) {
     const url = new URL(apiUrl)
     const protocol = url.protocol === 'https:' ? 'wss' : 'ws'
