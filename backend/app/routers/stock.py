@@ -199,7 +199,7 @@ def create_location(
     body: CreateLocationRequest,
     db: Session = Depends(get_db),
     current_user: SupabaseUser = Depends(get_current_user),
-) -> StorageLocation:
+) -> LocationDetail:
     if current_user.role not in ("admin", "pharmacist"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -224,7 +224,19 @@ def create_location(
             existing.storage_type = body.storage_type
             db.commit()
             db.refresh(existing)
-            return existing
+            occ = get_slot_occupancy(db, existing.id)
+            return LocationDetail(
+                id=existing.id,
+                rack_name=existing.rack_name,
+                row=existing.row,
+                column=existing.column,
+                capacity=existing.capacity,
+                current_occupancy=occ,
+                available=existing.capacity - occ,
+                storage_type=existing.storage_type,
+                is_active=existing.is_active,
+                label=f"{existing.rack_name}, Row {existing.row}, Column {existing.column}",
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Storage slot {body.rack_name} Row {body.row} Column {body.column} already exists.",
@@ -241,7 +253,19 @@ def create_location(
     db.add(new_loc)
     db.commit()
     db.refresh(new_loc)
-    return new_loc
+    occ = get_slot_occupancy(db, new_loc.id)
+    return LocationDetail(
+        id=new_loc.id,
+        rack_name=new_loc.rack_name,
+        row=new_loc.row,
+        column=new_loc.column,
+        capacity=new_loc.capacity,
+        current_occupancy=occ,
+        available=new_loc.capacity - occ,
+        storage_type=new_loc.storage_type,
+        is_active=new_loc.is_active,
+        label=f"{new_loc.rack_name}, Row {new_loc.row}, Column {new_loc.column}",
+    )
 
 
 # ---------------------------------------------------------------------------
