@@ -14,6 +14,12 @@ from app.models.extraction_record import ExtractionRecord
 from app.models.monthly_finance import MonthlyFinance
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
+from app.models.decision_audit_log import DecisionAuditLog
+from app.models.staff_task import StaffTask
+from app.models.reminder import Reminder
+from app.models.storage_location import StorageLocation
+from app.models.medicine_location import MedicineLocation
+from app.models.voice_call_record import VoiceCallRecord
 
 __all__ = [
     "User",
@@ -23,4 +29,10 @@ __all__ = [
     "MonthlyFinance",
     "Sale",
     "SaleItem",
+    "DecisionAuditLog",
+    "StaffTask",
+    "Reminder",
+    "StorageLocation",
+    "MedicineLocation",
+    "VoiceCallRecord",
 ]

@@ -1,11 +1,8 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { login } from '../services/api'
+import Spinner from '../components/ui/Spinner'
 
-/**
- * LoginPage — full-screen login gate.
- * Styled in the MediVision dark medical-tech palette.
- */
 export default function LoginPage() {
   const { signIn } = useAuth()
   const [username, setUsername] = useState('')
@@ -21,63 +18,41 @@ export default function LoginPage() {
       const data = await login(username, password)
       signIn(data.access_token)
     } catch (err) {
-      setError(err.message ?? 'Login failed. Please try again.')
+      setError(err.message ?? 'Login failed. Please verify credentials.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center px-4"
-      style={{ background: 'linear-gradient(135deg, #0f1117 0%, #161b27 60%, #1a1f35 100%)' }}
+    <div 
+      className="min-h-dvh flex items-center justify-center px-4 relative overflow-hidden bg-bg"
     >
-      {/* Ambient glow blobs */}
-      <div aria-hidden="true" style={{
-        position: 'fixed', top: '15%', left: '20%',
-        width: 400, height: 400, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div aria-hidden="true" style={{
-        position: 'fixed', bottom: '20%', right: '15%',
-        width: 350, height: 350, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(6,182,212,0.10) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
+      {/* Immersive background glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-primary-500/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-accent-500/5 blur-[120px] pointer-events-none" />
 
-      <div style={{
-        width: '100%', maxWidth: 420,
-        background: 'rgba(22, 27, 39, 0.85)',
-        backdropFilter: 'blur(24px)',
-        border: '1px solid rgba(99,102,241,0.2)',
-        borderRadius: 20,
-        padding: '40px 36px',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-      }}>
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <div style={{
-            width: 56, height: 56, borderRadius: 14,
-            background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
-            boxShadow: '0 0 28px rgba(99,102,241,0.45)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 26,
-          }}>🩺</div>
-          <h1 style={{
-            fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px',
-            background: 'linear-gradient(135deg, #a5b4fc 0%, #22d3ee 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            margin: 0,
-          }}>MediVision AI</h1>
-          <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>
-            Sign in to access the dashboard
-          </p>
+      {/* Login Card Panel */}
+      <div className="w-full max-w-[420px] glass-card p-10 flex flex-col gap-8 shadow-2xl relative z-10 border border-slate-800">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="logo-mark text-slate-900 font-extrabold text-2xl select-none w-14 h-14">
+            🩺
+          </div>
+          <div>
+            <h1 className="text-2xl font-black gradient-text-accent tracking-tight">
+              MediVision AI
+            </h1>
+            <p className="text-xs text-slate-500 mt-1.5 font-medium">
+              Enterprise Pharmacy Operating System
+            </p>
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Input Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="username" style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8' }}>
+            <label htmlFor="username" className="text-xs font-bold text-slate-400 uppercase tracking-wide">
               Username
             </label>
             <input
@@ -88,23 +63,12 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="admin@medivision.local"
-              style={{
-                background: 'rgba(15,17,23,0.7)',
-                border: '1px solid rgba(99,102,241,0.25)',
-                borderRadius: 10,
-                padding: '10px 14px',
-                color: '#e2e8f0',
-                fontSize: 14,
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = 'rgba(99,102,241,0.7)')}
-              onBlur={(e) => (e.target.style.borderColor = 'rgba(99,102,241,0.25)')}
+              className="input-base"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8' }}>
+            <label htmlFor="password" className="text-xs font-bold text-slate-400 uppercase tracking-wide">
               Password
             </label>
             <input
@@ -115,65 +79,43 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              style={{
-                background: 'rgba(15,17,23,0.7)',
-                border: '1px solid rgba(99,102,241,0.25)',
-                borderRadius: 10,
-                padding: '10px 14px',
-                color: '#e2e8f0',
-                fontSize: 14,
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = 'rgba(99,102,241,0.7)')}
-              onBlur={(e) => (e.target.style.borderColor = 'rgba(99,102,241,0.25)')}
+              className="input-base"
             />
           </div>
 
-          {/* Error message */}
           {error && (
-            <div style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 8, padding: '10px 14px',
-              color: '#fca5a5', fontSize: 13,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span>⚠</span> {error}
+            <div className="alert alert-danger animate-fade-in py-3 text-xs leading-normal">
+              <span>⚠</span>
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Submit */}
           <button
             id="login-submit-btn"
             type="submit"
             disabled={loading}
-            style={{
-              marginTop: 4,
-              padding: '12px',
-              borderRadius: 10,
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              background: loading
-                ? 'rgba(99,102,241,0.4)'
-                : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: 15,
-              letterSpacing: '0.2px',
-              transition: 'opacity 0.2s, transform 0.1s',
-              boxShadow: loading ? 'none' : '0 4px 16px rgba(99,102,241,0.35)',
-            }}
-            onMouseEnter={(e) => { if (!loading) e.target.style.opacity = '0.88' }}
-            onMouseLeave={(e) => { e.target.style.opacity = '1' }}
+            className="btn-primary w-full py-3 mt-2 text-xs uppercase tracking-wider font-extrabold flex items-center justify-center gap-2"
           >
-            {loading ? 'Signing in…' : 'Sign In'}
+            {loading ? (
+              <>
+                <Spinner size="sm" className="border-t-white" />
+                <span>Signing in…</span>
+              </>
+            ) : (
+              <span>Sign In</span>
+            )}
           </button>
         </form>
 
-        <p style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: '#334155' }}>
-          Protected by JWT · Session expires in 60 min
-        </p>
+        {/* Info label footer */}
+        <div className="text-center flex flex-col gap-1 mt-2 border-t border-slate-800/60 pt-4">
+          <span className="text-[10px] text-slate-650 font-bold uppercase tracking-wider font-mono">
+            Protected by JWT
+          </span>
+          <span className="text-[9px] text-slate-700">
+            Session credentials expire in 60 minutes
+          </span>
+        </div>
       </div>
     </div>
   )

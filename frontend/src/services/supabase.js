@@ -30,6 +30,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,          // stores session in localStorage automatically
     autoRefreshToken: true,        // silently refreshes the JWT before expiry
-    detectSessionInUrl: false,     // no OAuth redirect flow needed
+    detectSessionInUrl: true,      // parse OAuth redirect token parameters in the URL
   },
 })

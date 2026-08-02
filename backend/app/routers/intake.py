@@ -40,6 +40,7 @@ from app.models.extraction_record import (
     STATUS_FAILED,
 )
 from app.services.vision_service import extract_medicine_fields
+from app.services.location_service import resolve_location
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +355,8 @@ class MedicineResponse(BaseModel):
     qr_code_image: str | None = None
     created_at: datetime
     updated_at: datetime
+    location_assignment: dict | None = None
+    location_candidates: list[dict] | None = None
 
 
     class Config:
@@ -631,4 +634,21 @@ def confirm_intake(
     db.commit()
     db.refresh(medicine)
 
-    return medicine
+    # 9. Resolve storage location for the incoming quantity
+    location_result = resolve_location(db, medicine.id, request_data.quantity)
+    db.commit()  # persist any auto-assignment made by resolve_location
+
+    # 10. Auto-resolve any active reminders / tasks if the new stock fixes the issue
+    try:
+        from app.services.voice_service import auto_resolve_medicine_issues
+        auto_resolve_medicine_issues(db, medicine.id)
+    except Exception as e:
+        logger.warning(f"auto_resolve_medicine_issues failed for medicine {medicine.id}: {e}")
+
+    response = MedicineResponse.model_validate(medicine)
+    if location_result.auto_assigned:
+        response.location_assignment = location_result.assigned_location
+    else:
+        response.location_candidates = location_result.candidates
+
+    return response

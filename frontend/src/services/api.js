@@ -215,10 +215,29 @@ export const createSale = (payload) => {
 
 export const getSalesHistory = (params = {}) => {
   const queryParts = []
-  if (params.start_date) queryParts.push(`start_date=${encodeURIComponent(params.start_date)}`)
-  if (params.end_date) queryParts.push(`end_date=${encodeURIComponent(params.end_date)}`)
-  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
-  return request(`/sales${queryString}`)
+  if (params.start_date) queryParts.push('start_date=' + encodeURIComponent(params.start_date))
+  if (params.end_date) queryParts.push('end_date=' + encodeURIComponent(params.end_date))
+  const queryString = queryParts.length > 0 ? '?' + queryParts.join('&') : ''
+  return request('/sales' + queryString)
+}
+
+// ── Stock Locations ────────────────────────────────────────────────────────
+export const confirmLocation = (payload) => {
+  return request('/stock/confirm-location', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
+
+export const getLocations = () => {
+  return request('/stock/locations')
+}
+
+export const createLocation = (payload) => {
+  return request('/stock/locations', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
 }
 
 export default { 
@@ -243,5 +262,8 @@ export default {
   downloadGstReport,
   downloadTransactionsExport,
   createSale,
-  getSalesHistory
+  getSalesHistory,
+  confirmLocation,
+  getLocations,
+  createLocation
 }
