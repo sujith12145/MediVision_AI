@@ -1,0 +1,7 @@
+{
+  "venvPath": "MediVision AI/backend",
+  "venv": ".venv",
+  "extraPaths": [
+    "MediVision AI/backend"
+  ]
+}
