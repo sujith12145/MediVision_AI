@@ -4,15 +4,22 @@ import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
 import Badge from '../ui/Badge'
 
-export default function GstConfigModal({ isOpen, onClose, selectedMonth, showToast }) {
+export default function GstConfigModal({ isOpen, onClose, selectedMonth, showToast, defaultFormat = 'pdf' }) {
   const [medicines, setMedicines] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   
   // Local config state: { [medId]: { hsn_code: string, gst_rate: number } }
   const [gstConfig, setGstConfig] = useState({})
-  const [gstFormat, setGstFormat] = useState('pdf')
+  const [gstFormat, setGstFormat] = useState(defaultFormat)
   const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setGstFormat(defaultFormat)
+    }
+  }, [isOpen, defaultFormat])
+
 
   useEffect(() => {
     if (!isOpen || !selectedMonth) return

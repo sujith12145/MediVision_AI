@@ -1,74 +1,146 @@
-/**
- * AuthContext.jsx
- *
- * Provides:
- *   - isAuthenticated  Boolean — whether a live Supabase session exists
- *   - signIn(token?)   Triggers a re-check of the current session state
- *   - signOut()        Signs out from Supabase and clears the session
- *
- * Session management is handled entirely by the Supabase JS SDK:
- *   - Token storage, refresh, and expiry are automatic.
- *   - onAuthStateChange fires on login, logout, and token refresh.
- *   - No manual localStorage manipulation needed.
- */
+import { createContext, useContext, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { supabase } from '../services/supabase'
+const AuthContext = createContext()
 
-const AuthContext = createContext(null)
-
-export function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null)
+  const [userRole, setUserRole] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState(null)
 
+  const fetchUserRole = async (email) => {
+    if (!email) {
+      setUserRole(null)
+      setAuthError(null)
+      return null
+    }
+    const normalized = email.trim().toLowerCase()
+    console.log(`[AuthContext] fetchUserRole initiating query for email: "${normalized}"`)
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('email', normalized)
+        .maybeSingle()
+
+      if (error) {
+        console.error('[AuthContext] Database query error fetching role:', error)
+        setAuthError(`Database error: ${error.message}`)
+        setUserRole(null)
+        return null
+      }
+
+      console.log(`[AuthContext] Database query success for "${normalized}". Data returned:`, data)
+      const role = data?.role || null
+      setUserRole(role)
+      if (role) {
+        setAuthError(null)
+      } else {
+        setAuthError('No role assigned. Please contact your administrator.')
+      }
+      return role
+    } catch (err) {
+      console.error('[AuthContext] Unexpected error fetching user role:', err)
+      setAuthError(`Connection error: ${err.message || err}`)
+      setUserRole(null)
+      return null
+    }
+  }
+
+  // Expose direct query test function for browser console debugging (TASK 5)
   useEffect(() => {
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session)
-      setLoading(false)
-    })
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session)
-      setLoading(false)
-    })
-
-    return () => {
-      subscription.unsubscribe()
+    if (typeof window !== 'undefined') {
+      window.testSupabaseRoleQuery = async (email = 'anso2020vja@gmail.com') => {
+        console.log(`[Test] Querying user_roles table for: "${email}"`)
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('*')
+          .eq('email', email.trim().toLowerCase())
+        if (error) {
+          console.error('[Test] Query failed:', error)
+          return { success: false, error }
+        }
+        console.log('[Test] Query successful! Data returned:', data)
+        return { success: true, data }
+      }
     }
   }, [])
 
-  const signIn = useCallback(() => {
-    setIsAuthenticated(true)
-  }, [])
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      
+      if (currentUser) {
+        await fetchUserRole(currentUser.email)
+      } else {
+        setUserRole(null)
+        setAuthError(null)
+      }
+      setLoading(false)
+    })
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
-    setIsAuthenticated(false)
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center bg-surface-900 text-slate-100">
-        <div className="relative w-12 h-12">
-          <div className="absolute inset-0 rounded-full border-4 border-primary-500/20" />
-          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-550 animate-spin" />
-        </div>
-      </div>
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        
+        if (currentUser) {
+          await fetchUserRole(currentUser.email)
+        } else {
+          setUserRole(null)
+          setAuthError(null)
+        }
+        setLoading(false)
+      }
     )
+
+    return () => listener?.subscription?.unsubscribe()
+  }, [])
+
+  const signInWithGoogle = async () => {
+    setAuthError(null)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    })
+    if (error) setAuthError(error.message)
+  }
+
+  const signInWithEmail = async (email, password) => {
+    setLoading(true)
+    setAuthError(null)
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) throw error
+      if (data?.session?.user) {
+        setUser(data.session.user)
+        await fetchUserRole(data.session.user.email)
+      }
+    } catch (error) {
+      console.error('Email Sign In Error:', error)
+      setAuthError(error.message || 'Authentication failed. Please try again.')
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setUserRole(null)
+    setAuthError(null)
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, userRole, loading, authError, signInWithGoogle, signInWithEmail, signOut, fetchUserRole }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-/** Convenience hook — throws if used outside <AuthProvider>. */
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')
-  return ctx
-}
+export const useAuth = () => useContext(AuthContext)

@@ -6,7 +6,7 @@ import logging
 import asyncio
 import time
 from typing import Any
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -307,29 +307,68 @@ async def notifications_endpoint(websocket: WebSocket, token: str | None = None)
         active_notification_connections.discard(websocket)
 
 
+class InterceptWebSocket:
+    def __init__(self, websocket: WebSocket):
+        self.websocket = websocket
+        self.pending_approvals = {}  # approval_id -> asyncio.Future
+
+    def __getattr__(self, name):
+        return getattr(self.websocket, name)
+
+    async def accept(self):
+        await self.websocket.accept()
+
+    async def close(self, code: int = 1000):
+        await self.websocket.close(code)
+
+    async def send_text(self, data: str):
+        await self.websocket.send_text(data)
+
+    async def send_bytes(self, data: bytes):
+        await self.websocket.send_bytes(data)
+
+    async def send_json(self, data: dict):
+        import json
+        await self.websocket.send_text(json.dumps(data))
+
+    async def receive(self):
+        while True:
+            msg = await self.websocket.receive()
+            if "text" in msg and msg["text"]:
+                try:
+                    import json
+                    payload = json.loads(msg["text"])
+                    if payload.get("type") == "tool_approval_response":
+                        app_id = payload.get("approval_id")
+                        approved = payload.get("approved", False)
+                        if app_id in self.pending_approvals:
+                            self.pending_approvals[app_id].set_result(approved)
+                            # Strip out and read next frame from WebSocket
+                            continue
+                except Exception as e:
+                    logger.warning(f"Error parsing text WebSocket frame: {e}")
+            return msg
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket, 
-    token: str | None = None,
-    greeting: str | None = None
+    token: str = Query(...),
+    greeting: str | None = Query(None)
 ):
     """
     WebSocket endpoint for bidirectional real-time audio and function calling.
     Authenticates token from query parameters. Supports optional custom greetings parameter.
     """
-    if not token:
-        logger.warning("Rejected WebSocket connection: missing auth token.")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+    wrapped_websocket = InterceptWebSocket(websocket)
+    # Accept the connection first
+    await wrapped_websocket.accept()
 
     payload = decode_access_token(token)
     if not payload:
         logger.warning("Rejected WebSocket connection: invalid or expired auth token.")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await wrapped_websocket.close(code=1008)
         return
-
-    # Accept connection after successful authentication
-    await websocket.accept()
     
     session_id = id(websocket)
     logger.info(f"Accepted authenticated voice WebSocket connection. Session ID: {session_id}")
@@ -424,6 +463,38 @@ async def websocket_endpoint(
             related_medicine_id: Optional database medicine ID associated with the task.
         """
         logger.info(f"Voice Tool called [Session {session_id}]: dispatch_task — assigned_to={assigned_to}, message={message}")
+        
+        # Human in the Loop Interception
+        import time
+        approval_id = f"task_{int(time.time() * 1000)}"
+        future = asyncio.get_running_loop().create_future()
+        wrapped_websocket.pending_approvals[approval_id] = future
+
+        try:
+            await wrapped_websocket.send_json({
+                "type": "tool_approval_request",
+                "tool": "dispatch_task",
+                "approval_id": approval_id,
+                "params": {
+                    "assigned_to": assigned_to,
+                    "message": message,
+                    "related_medicine_id": related_medicine_id
+                }
+            })
+            approved = await asyncio.wait_for(future, timeout=30.0)
+        except Exception as e:
+            logger.warning(f"Task approval timed out or error: {e}")
+            approved = False
+        finally:
+            wrapped_websocket.pending_approvals.pop(approval_id, None)
+
+        if not approved:
+            await params.result_callback({
+                "status": "rejected",
+                "message": "Action rejected or timed out by pharmacist."
+            })
+            return
+
         db = SessionLocal()
         try:
             task = run_with_retry(voice_service.dispatch_task, db, assigned_to, message, related_medicine_id)
@@ -452,6 +523,40 @@ async def websocket_endpoint(
             repeat_interval: Optional interval value: 'every_hour', 'every_day' or cron string.
         """
         logger.info(f"Voice Tool called [Session {session_id}]: create_reminder — title={title}, reminder_time={reminder_time}, medicine_id={medicine_id}, type={reminder_type}")
+        
+        # Human in the Loop Interception
+        import time
+        approval_id = f"reminder_{int(time.time() * 1000)}"
+        future = asyncio.get_running_loop().create_future()
+        wrapped_websocket.pending_approvals[approval_id] = future
+
+        try:
+            await wrapped_websocket.send_json({
+                "type": "tool_approval_request",
+                "tool": "create_reminder",
+                "approval_id": approval_id,
+                "params": {
+                    "title": title,
+                    "reminder_time": reminder_time,
+                    "medicine_id": medicine_id,
+                    "reminder_type": reminder_type,
+                    "repeat_interval": repeat_interval
+                }
+            })
+            approved = await asyncio.wait_for(future, timeout=30.0)
+        except Exception as e:
+            logger.warning(f"Reminder approval timed out or error: {e}")
+            approved = False
+        finally:
+            wrapped_websocket.pending_approvals.pop(approval_id, None)
+
+        if not approved:
+            await params.result_callback({
+                "status": "rejected",
+                "message": "Action rejected or timed out by pharmacist."
+            })
+            return
+
         db = SessionLocal()
         try:
             reminder = run_with_retry(
@@ -540,7 +645,7 @@ async def websocket_endpoint(
 
     # Initialize Pipecat WebSocket Transport
     transport = FastAPIWebsocketTransport(
-        websocket=websocket,
+        websocket=wrapped_websocket,  # type: ignore
         params=FastAPIWebsocketParams(
             audio_in_enabled=True,
             audio_out_enabled=True,

@@ -20,6 +20,7 @@ from app.models.reminder import Reminder
 from app.models.storage_location import StorageLocation
 from app.models.medicine_location import MedicineLocation
 from app.models.voice_call_record import VoiceCallRecord
+from app.models.purchase_order import PurchaseOrder
 
 __all__ = [
     "User",
@@ -35,4 +36,5 @@ __all__ = [
     "StorageLocation",
     "MedicineLocation",
     "VoiceCallRecord",
+    "PurchaseOrder",
 ]

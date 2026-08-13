@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
+import { useAuth } from './AuthContext'
 
 const WorkspaceContext = createContext(null)
 
@@ -16,6 +18,11 @@ export function WorkspaceProvider({ children }) {
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
+
+  // Consume role and loading from AuthContext
+  const { user: authUser, userRole, loading: authLoading } = useAuth()
+  const userEmail = authUser?.email || ''
+  const userLoading = authLoading
 
   // Live Notifications Data
   const [notifications, setNotifications] = useState([
@@ -49,57 +56,46 @@ export function WorkspaceProvider({ children }) {
     setNotifications([])
   }, [])
   
-  // User state
-  const [userEmail, setUserEmail] = useState('')
-  const [userRole, setUserRole] = useState('staff')
-  const [userLoading, setUserLoading] = useState(true)
-
   // Update theme class on HTML element
   useEffect(() => {
     document.documentElement.className = theme
     localStorage.setItem('mv-theme', theme)
   }, [theme])
 
-
-  // Fetch current user details
-  const fetchUser = useCallback(async () => {
-    setUserLoading(true)
-    try {
-      const { data, error } = await supabase.auth.getUser()
-      if (data?.user) {
-        setUserEmail(data.user.email ?? '')
-        setUserRole(data.user.user_metadata?.role ?? 'staff')
-      } else {
-        setUserEmail('')
-        setUserRole('staff')
-      }
-    } catch (err) {
-      console.error('Failed to get user metadata:', err)
-    } finally {
-      setUserLoading(false)
-    }
-  }, [])
-
-  // Listen to auth changes
+  // Reset active panel on logout
   useEffect(() => {
-    fetchUser()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        fetchUser()
-      } else if (event === 'SIGNED_OUT') {
-        setUserEmail('')
-        setUserRole('staff')
-        setActivePanel('dashboard')
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [fetchUser])
+    if (!authUser) {
+      setActivePanel('dashboard')
+    }
+  }, [authUser])
+
+
+  const navigate = useNavigate()
 
   // Navigate utility
   const navigateTo = useCallback((panel) => {
     setActivePanel(panel)
     setCommandPaletteOpen(false)
-  }, [])
+    
+    const routeMap = {
+      'dashboard': '/dashboard',
+      'inventory': '/stock-grid',
+      'intake': '/stock-intake',
+      'qr-scan': '/qr-scan',
+      'billing': '/pos',
+      'copilot': '/ai-copilot',
+      'voice': '/voice-dictation',
+      'analytics': '/performance',
+      'suppliers-po': '/suppliers-po',
+      'reports': '/reports',
+      'audits': '/trace-audits',
+      'finance': '/fixed-cost',
+      'settings': '/settings',
+      'users': '/user-management'
+    }
+    const targetPath = routeMap[panel] || '/dashboard'
+    navigate(targetPath)
+  }, [navigate])
 
   // Toast notification stack utility
   const showToast = useCallback((message, type = 'success') => {

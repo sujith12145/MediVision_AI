@@ -7,13 +7,20 @@
  * - Throws a plain Error with a human-readable message on non-2xx responses.
  */
 
-import { supabase } from './supabase'
+import { supabase } from '../lib/supabaseClient'
 
 const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://medi-vision-ai.onrender.com')
 
 async function getToken() {
+  const localToken = localStorage.getItem('supabaseToken')
+  if (localToken) return localToken
+
   const { data } = await supabase.auth.getSession()
-  return data.session?.access_token ?? null
+  const sessionToken = data.session?.access_token ?? null
+  if (sessionToken) {
+    localStorage.setItem('supabaseToken', sessionToken)
+  }
+  return sessionToken
 }
 
 async function request(path, options = {}) {
@@ -27,11 +34,12 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
 
   if (res.status === 401) {
-    // Session expired — sign out and bounce to login
     await supabase.auth.signOut()
-    window.location.href = '/'
+    localStorage.removeItem('supabaseToken')
+    window.location.href = '/login'
     return
   }
+
 
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
@@ -60,7 +68,8 @@ async function downloadFile(path, options = {}) {
 
   if (res.status === 401) {
     await supabase.auth.signOut()
-    window.location.href = '/'
+    localStorage.removeItem('supabaseToken')
+    window.location.href = '/login'
     return
   }
 
@@ -205,6 +214,23 @@ export const downloadTransactionsExport = (params = {}) => {
   return downloadFile(`/finance/transactions/export${queryString}`)
 }
 
+export const downloadSalesReport = (month, format = 'pdf') => {
+  return downloadFile(`/finance/sales-report?month=${encodeURIComponent(month)}&format=${encodeURIComponent(format)}`)
+}
+
+export const downloadExpiryReport = (format = 'pdf') => {
+  return downloadFile(`/finance/expiry-report?format=${encodeURIComponent(format)}`)
+}
+
+export const getGstReportSummary = (month) => {
+  return request(`/finance/gst-report/summary/${month}`)
+}
+
+export const getFinancialRisk = () => {
+  return request('/analytics/financial-risk')
+}
+
+
 // ── Sales & Billing ─────────────────────────────────────────────────────────
 export const createSale = (payload) => {
   return request('/sales', {
@@ -219,6 +245,14 @@ export const getSalesHistory = (params = {}) => {
   if (params.end_date) queryParts.push('end_date=' + encodeURIComponent(params.end_date))
   const queryString = queryParts.length > 0 ? '?' + queryParts.join('&') : ''
   return request('/sales' + queryString)
+}
+
+export const getRecentSales = () => {
+  return request('/sales/recent')
+}
+
+export const getDashboardKpis = () => {
+  return request('/inventory/dashboard-kpis')
 }
 
 // ── Stock Locations ────────────────────────────────────────────────────────
@@ -238,6 +272,57 @@ export const createLocation = (payload) => {
     method: 'POST',
     body: JSON.stringify(payload)
   })
+}
+
+export const generatePurchaseOrder = (items) => {
+  return downloadFile('/orders/generate-po', {
+    method: 'POST',
+    body: JSON.stringify(items)
+  })
+}
+
+export const getPurchaseOrdersHistory = () => {
+  return request('/orders/history')
+}
+
+export const updatePurchaseOrderStatus = (poId, status) => {
+  return request(`/orders/${poId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status })
+  })
+}
+
+export const requestAccess = (email) => {
+  return request('/auth/request-access', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  })
+}
+
+export const approveAccess = (token) => {
+  return request(`/auth/approve-access?token=${encodeURIComponent(token)}`)
+}
+
+export const getPendingRequests = () => {
+  return request('/auth/pending-requests')
+}
+
+export const approveRequestAdmin = (id) => {
+  return request('/auth/approve-request-admin', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  })
+}
+
+export const rejectRequestAdmin = (id) => {
+  return request('/auth/reject-request-admin', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  })
+}
+
+export const getOwnerEmail = () => {
+  return request('/auth/owner-email')
 }
 
 export default { 
@@ -261,9 +346,24 @@ export default {
   getGstReportMedicines,
   downloadGstReport,
   downloadTransactionsExport,
+  downloadSalesReport,
+  downloadExpiryReport,
+  getGstReportSummary,
+  getFinancialRisk,
   createSale,
   getSalesHistory,
+  getRecentSales,
+  getDashboardKpis,
   confirmLocation,
   getLocations,
-  createLocation
+  createLocation,
+  generatePurchaseOrder,
+  getPurchaseOrdersHistory,
+  updatePurchaseOrderStatus,
+  requestAccess,
+  approveAccess,
+  getPendingRequests,
+  approveRequestAdmin,
+  rejectRequestAdmin,
+  getOwnerEmail
 }

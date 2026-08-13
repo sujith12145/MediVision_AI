@@ -27,7 +27,7 @@ class CreateSaleItemRequest(BaseModel):
 
 
 class CreateSaleRequest(BaseModel):
-    items: list[CreateSaleItemRequest] = Field(..., min_items=1, description="List of items to purchase")
+    items: list[CreateSaleItemRequest] = Field(..., min_length=1, description="List of items to purchase")
     customer_name: str | None = Field(None, max_length=255, description="Optional customer name")
     customer_phone: str | None = Field(None, description="Optional customer phone number")
 
@@ -205,7 +205,7 @@ def record_sale(
             id=sale.id,
             sold_by=sale.sold_by,
             sold_at=sale.sold_at,
-            total_amount=float(sale.total_amount),
+            total_amount=sale.total_amount,
             items=response_items,
             customer_name=sale.customer_name,
             customer_phone=sale.customer_phone,
@@ -290,4 +290,44 @@ def get_sales_history(
         )
 
     return responses
+
+
+class RecentSalesResponse(BaseModel):
+    date: str
+    sales: float
+
+
+@router.get(
+    "/recent",
+    response_model=list[RecentSalesResponse],
+    summary="Get recent sales aggregated by day for the last 7 days",
+    description="Returns total sales amount for each day in the last 7 days.",
+)
+def get_recent_sales(
+    db: Session = Depends(get_db),
+    current_user: SupabaseUser = Depends(get_current_user),
+) -> list[RecentSalesResponse]:
+    from datetime import date, timedelta
+    today = date.today()
+    start_date = today - timedelta(days=6)
+    
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    sales = db.query(Sale).filter(Sale.sold_at >= start_dt).all()
+    
+    sales_by_date = {}
+    for i in range(7):
+        d = today - timedelta(days=i)
+        sales_by_date[d.strftime("%Y-%m-%d")] = 0.0
+        
+    for sale in sales:
+        date_str = sale.sold_at.strftime("%Y-%m-%d")
+        if date_str in sales_by_date:
+            sales_by_date[date_str] += float(sale.total_amount)
+            
+    result = [
+        RecentSalesResponse(date=d_str, sales=sales_by_date[d_str])
+        for d_str in sorted(sales_by_date.keys())
+    ]
+    return result
+
 

@@ -94,6 +94,9 @@ TEST_CASES = [
     },
 ]
 
+# Explicit type annotation so the type checker knows image is always a Path
+TEST_CASES_TYPED: list[dict[str, object]] = TEST_CASES  # noqa: F841
+
 COMPARE_FIELDS = [
     "medicine_name", "strength", "manufacturer",
     "batch_number", "expiry_date", "mrp", "quantity_hint",
@@ -157,12 +160,15 @@ def main():
         token = login(client)
 
         for case in TEST_CASES:
+            image_path = case["image"]
+            assert isinstance(image_path, pathlib.Path), f"Expected Path, got {type(image_path)}"
             print(f"\n[TEST] {case['label']}")
-            print(f"       Image: {case['image'].name}")
+            print(f"       Image: {image_path.name}")
 
             data = upload_and_extract(client, token, case)
             if data is None:
-                all_issues[case["label"]] = ["[Could not get response]"]
+                label = str(case["label"])
+                all_issues[label] = ["[Could not get response]"]
                 continue
 
             print(f"  Status : {data.get('status')}")
@@ -175,12 +181,12 @@ def main():
                 conf = (data.get("confidence") or {}).get(field, "—")
                 print(f"  {field:20s}: {str(val):40s} (conf: {conf})")
 
-            issues = compare(case["label"], case["expected"], data)
+            issues = compare(str(case["label"]), case["expected"], data)  # type: ignore[arg-type]
             if issues:
                 print(f"\n  [!] {len(issues)} field(s) need attention:")
                 for i in issues:
                     print(i)
-                all_issues[case["label"]] = issues
+                all_issues[str(case["label"])] = issues
             else:
                 print("\n  [OK] All compared fields matched.")
 

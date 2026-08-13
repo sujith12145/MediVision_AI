@@ -62,10 +62,28 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    # Get role from JWT payload (user_metadata or app_metadata)
-    user_metadata = payload.get("user_metadata", {})
-    app_metadata = payload.get("app_metadata", {})
-    role = user_metadata.get("role") or app_metadata.get("role") or "staff"
+    # Get role from database, falling back to ADMIN_EMAIL or JWT payload
+    role = None
+    try:
+        from app.supabase_client import get_supabase_client
+        sb = get_supabase_client()
+        res = sb.table("user_roles").select("role").eq("email", email.strip().lower()).execute()
+        if res.data:
+            role = res.data[0].get("role")
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Failed to fetch user role from db: %s", exc)
+
+    if not role:
+        import os
+        admin_email = os.getenv("ADMIN_EMAIL", "anso2020vja@gmail.com").strip().lower()
+        if email.strip().lower() == admin_email:
+            role = "admin"
+
+    if not role:
+        user_metadata = payload.get("user_metadata", {})
+        app_metadata = payload.get("app_metadata", {})
+        role = user_metadata.get("role") or app_metadata.get("role") or "staff"
     
     return SupabaseUser(
         id=user_id,

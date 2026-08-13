@@ -193,6 +193,52 @@ def get_expiry_summary(
     return ExpirySummaryResponse(red=red, amber=amber, green=green)
 
 
+class DashboardKpisResponse(BaseModel):
+    total_skus: int
+    total_value: float
+    items_below_threshold: int
+    expiring_count: int
+    expiring_value: float
+
+
+@router.get(
+    "/dashboard-kpis",
+    response_model=DashboardKpisResponse,
+    summary="Get dashboard KPI statistics",
+    description="Calculates total SKUs, total inventory value, items below threshold, and value of expiring items in SQL.",
+)
+def get_dashboard_kpis(
+    db: Session = Depends(get_db),
+    current_user: SupabaseUser = Depends(get_current_user),
+) -> DashboardKpisResponse:
+    total_skus = db.query(Medicine).count()
+
+    total_value_res = db.query(func.sum(Medicine.quantity * Medicine.purchase_price)).scalar()
+    total_value = float(total_value_res) if total_value_res is not None else 0.0
+
+    items_below_threshold = db.query(Medicine).filter(Medicine.quantity <= Medicine.reorder_threshold).count()
+
+    today = date.today()
+    near_expiry_threshold = today + timedelta(days=30)
+    
+    expiring_items = db.query(Medicine).filter(
+        Medicine.expiry_date >= today,
+        Medicine.expiry_date <= near_expiry_threshold
+    ).all()
+    
+    expiring_count = len(expiring_items)
+    expiring_value = sum(item.quantity * item.purchase_price for item in expiring_items)
+
+    return DashboardKpisResponse(
+        total_skus=total_skus,
+        total_value=total_value,
+        items_below_threshold=items_below_threshold,
+        expiring_count=expiring_count,
+        expiring_value=float(expiring_value)
+    )
+
+
+
 class ReorderSuggestionResponse(BaseModel):
     medicine_id: int
     name: str

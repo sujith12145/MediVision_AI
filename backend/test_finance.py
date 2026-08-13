@@ -270,6 +270,41 @@ def run_tests():
         assert len(resp.content) > 0
         print("[PASS] Transactions Excel ledger exported successfully.")
 
+        # Test Case 10: GET /api/finance/gst-report/summary/{month}
+        print("\n[TEST 10] GET /api/finance/gst-report/summary/2026-07...")
+        resp = client.get("/api/finance/gst-report/summary/2026-07")
+        assert resp.status_code == 200
+        data_sum = resp.json()
+        assert data_sum["unique_medicines_count"] >= 1
+        assert data_sum["total_taxable_value"] > 0
+        print("[PASS] GST report summary retrieved successfully.")
+
+        # Test Case 11: GET /api/finance/sales-report (PDF and Excel)
+        print("\n[TEST 11] GET /api/finance/sales-report (PDF and Excel)...")
+        resp_pdf = client.get("/api/finance/sales-report?month=2026-07&format=pdf")
+        assert resp_pdf.status_code == 200
+        assert resp_pdf.headers["content-type"] == "application/pdf"
+        assert len(resp_pdf.content) > 0
+        
+        resp_xls = client.get("/api/finance/sales-report?month=2026-07&format=excel")
+        assert resp_xls.status_code == 200
+        assert "spreadsheet" in resp_xls.headers["content-type"]
+        assert len(resp_xls.content) > 0
+        print("[PASS] Sales P&L reports (PDF/Excel) generated successfully.")
+
+        # Test Case 12: GET /api/finance/expiry-report (PDF and Excel)
+        print("\n[TEST 12] GET /api/finance/expiry-report (PDF and Excel)...")
+        resp_epdf = client.get("/api/finance/expiry-report?format=pdf")
+        assert resp_epdf.status_code == 200
+        assert resp_epdf.headers["content-type"] == "application/pdf"
+        assert len(resp_epdf.content) > 0
+        
+        resp_exls = client.get("/api/finance/expiry-report?format=excel")
+        assert resp_exls.status_code == 200
+        assert "spreadsheet" in resp_exls.headers["content-type"]
+        assert len(resp_exls.content) > 0
+        print("[PASS] Expiry reports (PDF/Excel) generated successfully.")
+
         # Cleanup
         db.query(SaleItem).delete()
         db.query(ExtractionRecord).delete()

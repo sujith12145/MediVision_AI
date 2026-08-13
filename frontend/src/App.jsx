@@ -1,79 +1,150 @@
-import { useAuth } from './contexts/AuthContext'
+import { useEffect } from 'react'
 import { WorkspaceProvider, useWorkspace } from './contexts/WorkspaceContext'
-import AppShell from './components/layout/AppShell'
-import LandingPage from './pages/LandingPage'
+import { NotificationProvider } from './contexts/NotificationContext'
+import AppLayout from './AppLayout'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import { ThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+import { getTheme } from './theme'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import ProtectedRoute from './components/ProtectedRoute'
 
 // Panels
-import DashboardPanel from './components/panels/DashboardPanel'
 import InventoryPanel from './components/panels/InventoryPanel'
-import IntakePanel from './components/panels/IntakePanel'
-import QRLookupPanel from './components/panels/QRLookupPanel'
+import IntakeWizard from './pages/IntakeWizard'
 import BillingPanel from './components/panels/BillingPanel'
 import CopilotPanel from './components/panels/CopilotPanel'
 import FinancePanel from './components/panels/FinancePanel'
-import ReorderPanel from './components/panels/ReorderPanel'
 import SettingsPanel from './components/panels/SettingsPanel'
 
 // New Panels
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
-import SuppliersPanel from './components/panels/SuppliersPanel'
-import VoicePanel from './components/panels/VoicePanel'
+import VoiceCenter from './pages/VoiceCenter'
 import ReportsPanel from './components/panels/ReportsPanel'
-import AuditPanel from './components/panels/AuditPanel'
+
+// Upgraded Pages
+import SuppliersPO from './pages/SuppliersPO'
+import QRScanner from './pages/QRScanner'
+import TraceAudits from './pages/TraceAudits'
+
+// New Admin & Public Pages
+import UserManagement from './pages/Admin/UserManagement'
+import AccessDenied from './pages/AccessDenied'
+import ApproveAccess from './pages/ApproveAccess'
 
 function WorkspaceRouter() {
-  const { activePanel, userRole } = useWorkspace()
+  const { userRole } = useWorkspace()
 
-  // Secure route check (for staff trying to navigate to admin panel)
-  const isLocked = (activePanel === 'finance') && userRole === 'staff'
-  const panelToRender = isLocked ? 'dashboard' : activePanel
-
-  switch (panelToRender) {
-    case 'dashboard':
-      return <DashboardPanel />
-    case 'inventory':
-      return <InventoryPanel />
-    case 'intake':
-      return <IntakePanel />
-    case 'qr-lookup':
-      return <QRLookupPanel />
-    case 'billing':
-      return <BillingPanel />
-    case 'copilot':
-      return <CopilotPanel />
-    case 'finance':
-      return <FinancePanel />
-    case 'reorder':
-      return <ReorderPanel />
-    case 'analytics':
-      return <AnalyticsPanel />
-    case 'suppliers':
-      return <SuppliersPanel />
-    case 'voice':
-      return <VoicePanel />
-    case 'reports':
-      return <ReportsPanel />
-    case 'audit':
-      return <AuditPanel />
-    case 'settings':
-      return <SettingsPanel />
-    default:
-      return <DashboardPanel />
-  }
-}
-
-export default function App() {
-  const { isAuthenticated } = useAuth()
-
-  if (!isAuthenticated) {
-    return <LandingPage />
+  // Guard Helper to check admin clearance
+  const AdminRoute = ({ children }) => {
+    return userRole === 'admin' ? children : <Navigate to="/dashboard" replace />
   }
 
   return (
-    <WorkspaceProvider>
-      <AppShell>
+    <Routes>
+      {/* Core Redirect / Root */}
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      
+      {/* Explicit routes */}
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/voice-dictation" element={<VoiceCenter />} />
+
+      {/* Dynamic module routes */}
+      <Route path="/stock-grid" element={<InventoryPanel />} />
+      <Route path="/stock-intake" element={<IntakeWizard />} />
+      <Route path="/qr-scan" element={<QRScanner />} />
+      <Route path="/pos" element={<BillingPanel />} />
+      <Route path="/ai-copilot" element={<CopilotPanel />} />
+      <Route 
+        path="/fixed-cost" 
+        element={
+          <AdminRoute>
+            <FinancePanel />
+          </AdminRoute>
+        } 
+      />
+      <Route path="/suppliers-po" element={<SuppliersPO />} />
+      <Route 
+        path="/performance" 
+        element={
+          <AdminRoute>
+            <AnalyticsPanel />
+          </AdminRoute>
+        } 
+      />
+      <Route path="/reports" element={<ReportsPanel />} />
+      <Route 
+        path="/settings" 
+        element={
+          <AdminRoute>
+            <SettingsPanel />
+          </AdminRoute>
+        } 
+      />
+      <Route 
+        path="/trace-audits" 
+        element={
+          <AdminRoute>
+            <TraceAudits />
+          </AdminRoute>
+        } 
+      />
+      <Route 
+        path="/user-management" 
+        element={
+          <AdminRoute>
+            <UserManagement />
+          </AdminRoute>
+        } 
+      />
+
+      {/* Catch-all fallback redirects to /dashboard */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  )
+}
+
+function ThemedApp() {
+  const { theme } = useWorkspace()
+  const mode = theme.replace('theme-', '')
+  const muiTheme = getTheme(mode)
+
+  return (
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <AppLayout>
         <WorkspaceRouter />
-      </AppShell>
-    </WorkspaceProvider>
+      </AppLayout>
+    </ThemeProvider>
+  )
+}
+
+export default function App() {
+  useEffect(() => {
+    console.log('App is mounting...')
+  }, [])
+
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/access-denied" element={<AccessDenied />} />
+      <Route path="/approve" element={<ApproveAccess />} />
+      
+      {/* Protected Routes */}
+      <Route 
+        path="/*" 
+        element={
+          <ProtectedRoute>
+            <WorkspaceProvider>
+              <NotificationProvider>
+                <ThemedApp />
+              </NotificationProvider>
+            </WorkspaceProvider>
+          </ProtectedRoute>
+        } 
+      />
+    </Routes>
   )
 }
