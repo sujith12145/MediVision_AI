@@ -1,7 +1,15 @@
 {
+<<<<<<< HEAD
   "venvPath": "MediVision AI/backend",
   "venv": ".venv",
   "extraPaths": [
     "MediVision AI/backend"
+=======
+  "venvPath": "backend",
+  "venv": ".venv",
+  "extraPaths": [
+    "backend",
+    "backend/.venv/Lib/site-packages"
+>>>>>>> 5bd81961ed2136d8c044dfa21668127d595bc2dd
   ]
 }
